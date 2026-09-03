@@ -48,6 +48,15 @@ services:
       HOST: "0.0.0.0"
       PORT: "3000"
       AUTH_MODE: ${AUTH_MODE:?AUTH_MODE must be set explicitly}
+      # Required by every auth mode: drives the CSRF origin check.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      # AUTH_MODE=none only: explicit opt-in to run unauthenticated in a
+      # container for local testing. Refuses to combine with a non-local
+      # CORS_ORIGIN, so it cannot be turned on for a public deployment.
+      ALLOW_INSECURE_NO_AUTH: ${ALLOW_INSECURE_NO_AUTH:-}
+      # AUTH_MODE=cloudflare_access only (self-hosted behind Cloudflare Access).
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-}
       COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-}
       COGNITO_REGION: ${COGNITO_REGION:-}
@@ -64,12 +73,20 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/live || exit 1"]
+      # 127.0.0.1, not localhost: the server binds IPv4 0.0.0.0, while busybox
+      # wget resolves localhost to ::1 first and gets connection refused, so
+      # the container would report unhealthy while serving normally.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
 
   auth:
+    # Only meaningful with AUTH_MODE=cognito: the service exits at startup if
+    # COGNITO_* and SESSION_ENCRYPTION_KEY are unset, so leaving it in the
+    # default stack produced a permanent restart loop. Start it with
+    # `docker compose --profile cognito up -d`, or by naming it explicitly.
+    profiles: ["cognito"]
     build:
       context: ../..
       dockerfile: apps/auth/Dockerfile
@@ -88,15 +105,16 @@ services:
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://auth_service:${AUTH_DB_PASSWORD:-auth_service}@postgres:5432/tracker}
       SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:-}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      # See the note on the web healthcheck: IPv4 literal, not localhost.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
 
   worker:
     build:
-      context: ../../apps/worker
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://worker:${WORKER_DB_PASSWORD:-worker}@postgres:5432/tracker

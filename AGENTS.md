@@ -48,7 +48,9 @@ Open-source expense and budget tracker: expenses, budgets, balances, transfers, 
 | `apps/web/src/server/chat/openai/loop.ts` | Main app-managed OpenAI chat loop for the web app |
 | `apps/web/src/server/` | Server-side data functions for budget, balances, and transactions |
 | `apps/web/src/ui/` | React components: tables, charts, hooks |
-| `apps/web/src/proxy.ts` | Auth proxy logic controlled by `AUTH_MODE` |
+| `apps/web/src/proxy.ts` | Auth proxy logic controlled by `AUTH_MODE` (`none`, `cognito`, `cloudflare_access`) |
+| `apps/web/src/server/authMode.ts` | `AUTH_MODE` parsing and startup validation, including the `ALLOW_INSECURE_NO_AUTH` local-container opt-in |
+| `apps/web/src/server/cloudflareAccess.ts` | Cloudflare Access JWT verification for self-hosted deployments |
 | `apps/worker/src/fetchers/` | FX rate fetchers: `ecb.ts`, `cbr.ts`, `nbs.ts` |
 | `db/migrations/` | Postgres migrations applied in order by `scripts/migrate.sh` |
 | `db/views/` | Postgres views such as `accounts` |
@@ -128,6 +130,7 @@ AWS profile and region setup is in `## AWS Deployment`. Start from logs and trac
 
 - [docs/architecture.md](docs/architecture.md) - system overview, data model, multi-currency design, auth model
 - [docs/deployment.md](docs/deployment.md) - local Docker Compose and AWS CDK setup
+- [docs/self-hosting.md](docs/self-hosting.md) - running outside AWS with Cloudflare Access
 - [docs/langfuse-operations.md](docs/langfuse-operations.md) - Langfuse trace shape, filters, and telemetry troubleshooting
 - [infra/aws/README.md](infra/aws/README.md) - full AWS CDK deployment guide
 - [Makefile](Makefile) - `make up`, `make down`, `make migrate`, `make build`, `make lint`
