@@ -1,0 +1,16 @@
+# Files that are executed inside Linux containers must keep LF endings on every
+# platform. With `core.autocrlf=true` (the common Windows default) a checkout
+# would otherwise rewrite them to CRLF, and bash then fails on the first line:
+#
+#   /scripts/migrate.sh: line 12: $'\r': command not found
+#   /scripts/migrate.sh: line 13: set: pipefail: invalid option name
+#
+# scripts/ and db/ are bind-mounted straight into the migrate container by
+# infra/docker/compose.yml, so they are affected even without a rebuild.
+
+*.sh text eol=lf
+*.mjs text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+Makefile text eol=lf
+*.sql text eol=lf
