@@ -7,6 +7,11 @@
  *                     extracts the `sub` claim as userId. Unauthenticated users are
  *                     redirected to the auth service (auth.*) for login.
  *                     Expired tokens are refreshed inline (no GET redirect).
+ * AUTH_MODE=cloudflare_access
+ *                   — for self-hosted deployments behind Cloudflare Access. Reads the
+ *                     assertion Access forwards, verifies it against the team's JWKS,
+ *                     and extracts `sub`/`email`. Access owns login and session
+ *                     lifetime, so there is nothing to refresh or redirect to here.
  *
  * The resolved userId is forwarded as x-user-id and, once established, the
  * active workspace is forwarded as x-workspace-id to downstream route
@@ -15,6 +20,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JwtExpiredError } from "aws-jwt-verify/error";
 import { getJwtVerifier, refreshTokens } from "@/server/cognitoAuth";
+import {
+  CF_ACCESS_COOKIE,
+  CF_ACCESS_JWT_HEADER,
+  verifyAccessAssertion,
+} from "@/server/cloudflareAccess";
 import { hasApiKeyAuthorization } from "@/server/authHeader";
 import { log } from "@/server/logger";
 import { clearAuthCookies } from "@/server/cookies";
@@ -260,12 +270,83 @@ const maybeAttachCsrfCookie = (request: NextRequest, response: NextResponse): vo
   response.headers.append("Set-Cookie", buildCsrfCookieHeader(generateCsrfToken(), 3024000));
 };
 
+const forbidden = (nonce: string): NextResponse => {
+  const response = new NextResponse("Forbidden", { status: 403 });
+  addSecurityHeaders(response, nonce);
+  return response;
+};
+
 const redirectToAuth = (request: NextRequest, nonce: string): NextResponse => {
   const redirectUrl = buildAuthRedirectUrl(request);
   const response = NextResponse.redirect(redirectUrl);
   clearAuthCookies(response.headers);
   addSecurityHeaders(response, nonce);
   return response;
+};
+
+/**
+ * Shared tail of every authenticated request: resolve the active workspace and
+ * forward the identity downstream. Used by both the Cognito and the Cloudflare
+ * Access paths so workspace bootstrapping behaves identically in each.
+ */
+const forwardAuthenticated = (
+  request: NextRequest,
+  identity: VerifiedIdentity,
+  nonce: string,
+): NextResponse => {
+  if (request.nextUrl.pathname === WORKSPACE_BOOTSTRAP_PATH) {
+    return forwardWithIdentity(request, identity, null, nonce);
+  }
+
+  const workspaceId = resolveWorkspaceId(request);
+  if (workspaceId === null) {
+    return handleMissingWorkspaceCookie(request, nonce);
+  }
+
+  return forwardWithIdentity(request, identity, workspaceId, nonce);
+};
+
+/**
+ * AUTH_MODE=cloudflare_access.
+ *
+ * Cloudflare Access authenticates before the request ever reaches the origin,
+ * so a missing or invalid assertion means the request did not come through
+ * Access. That is a bypass or a misconfigured origin, not a user who needs to
+ * log in — Access would have redirected them itself — so it is refused with
+ * 403 rather than redirected anywhere.
+ *
+ * This is why the origin must not be reachable except through Cloudflare.
+ * Verifying the assertion is the app-side half of that; restricting inbound
+ * traffic to Cloudflare (Tunnel, or an IP allowlist) is the operator's half.
+ */
+const handleCloudflareAccess = async (
+  request: NextRequest,
+  nonce: string,
+): Promise<NextResponse> => {
+  const assertion = request.headers.get(CF_ACCESS_JWT_HEADER)
+    ?? request.cookies.get(CF_ACCESS_COOKIE)?.value
+    ?? "";
+
+  if (assertion === "") {
+    log({
+      domain: "auth",
+      action: "proxy_auth_error",
+      error: "Missing Cloudflare Access assertion — request did not pass through Access",
+    });
+    return forbidden(nonce);
+  }
+
+  let identity: VerifiedIdentity;
+  try {
+    const verified = await verifyAccessAssertion(assertion);
+    identity = { userId: verified.userId, email: verified.email, emailVerified: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log({ domain: "auth", action: "proxy_auth_error", error: `Cloudflare Access verification failed: ${message}` });
+    return forbidden(nonce);
+  }
+
+  return forwardAuthenticated(request, identity, nonce);
 };
 
 const handleMissingWorkspaceCookie = (
@@ -332,6 +413,10 @@ export const proxy = async (request: NextRequest): Promise<NextResponse> => {
     const response = NextResponse.next({ request: { headers } });
     addSecurityHeaders(response, nonce, csp);
     return response;
+  }
+
+  if (authMode === "cloudflare_access") {
+    return handleCloudflareAccess(request, nonce);
   }
 
   const sessionCookie = request.cookies.get("session")?.value ?? "";
@@ -403,16 +488,7 @@ export const proxy = async (request: NextRequest): Promise<NextResponse> => {
     return redirectToAuth(request, nonce);
   }
 
-  if (pathname === WORKSPACE_BOOTSTRAP_PATH) {
-    return forwardWithIdentity(request, identity, null, nonce);
-  }
-
-  const workspaceId = resolveWorkspaceId(request);
-  if (workspaceId === null) {
-    return handleMissingWorkspaceCookie(request, nonce);
-  }
-
-  return forwardWithIdentity(request, identity, workspaceId, nonce);
+  return forwardAuthenticated(request, identity, nonce);
 };
 
 export const config = {

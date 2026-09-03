@@ -7,6 +7,43 @@ body {
   overflow: hidden;
 }
 
+/*
+ * Soften the theme switch. Scoped to the two properties that actually change
+ * on <body>; a global `transition: all` would fight table and chart updates.
+ */
+body,
+.header-sticky,
+.panel {
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .header-sticky,
+  .panel {
+    transition: none;
+  }
+}
+
+/* Light text on a dark ground renders too heavy without this. */
+:root[data-theme="dark"] body {
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -15,6 +52,7 @@ a {
 
 a:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 button:not(:disabled),

@@ -2,8 +2,18 @@
   box-sizing: border-box;
 }
 
-*:focus {
+/*
+ * Suppress the default ring for pointer interaction only. A blanket
+ * `*:focus { outline: none }` leaves keyboard users with no focus indication
+ * at all, so `:focus-visible` below restores a deliberate one.
+ */
+*:focus:not(:focus-visible) {
   outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 html,

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -8,6 +8,8 @@ import { isDemoMode } from "@/lib/demoMode";
 import { DEFAULT_USER_SETTINGS, RTL_LOCALES, type SupportedLocale } from "@/lib/locale";
 import { getLocaleCookie } from "@/lib/localeCookie";
 import { NAV_LINKS } from "@/lib/navigation";
+import { themeAttribute } from "@/lib/theme";
+import { getThemeCookie } from "@/lib/themeCookie";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { t } from "@/i18n/serverT";
 import { buildRequestIdentity } from "@/server/db/requestIdentity";
@@ -25,6 +27,7 @@ import { FilteredModeProvider } from "@/ui/FilteredModeProvider";
 import { FormatProvider } from "@/ui/FormatProvider";
 import { ModeToggle } from "@/ui/ModeToggle";
 import { TableEditorActivationProvider } from "@/ui/tables/shared/TableEditorActivationProvider";
+import { ThemeToggle } from "@/ui/ThemeToggle";
 
 import "./globals.css";
 
@@ -33,17 +36,47 @@ export const metadata: Metadata = {
   description: "Personal finance tracker",
 };
 
+/** Must track `--bg` in `styles/tokens.css`. */
+const LIGHT_BG = "#ffffff";
+const DARK_BG = "#0d0d0d";
+
+/**
+ * Tints mobile browser chrome to match the page. Resolved from the same cookie
+ * as `data-theme` so an explicit choice is honored; "system" falls back to the
+ * two media-scoped entries.
+ */
+export const generateViewport = async (): Promise<Viewport> => {
+  const theme = await getThemeCookie();
+  if (theme === "light") return { themeColor: LIGHT_BG };
+  if (theme === "dark") return { themeColor: DARK_BG };
+  return {
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: LIGHT_BG },
+      { media: "(prefers-color-scheme: dark)", color: DARK_BG },
+    ],
+  };
+};
+
 export default async function RootLayout(props: Readonly<{ children: React.ReactNode }>) {
   const { children } = props;
   const headersList = await headers();
   const requestPath = headersList.get("x-request-path") ?? "";
   const isPublicMonthlySharePage = requestPath.startsWith("/share/monthly/");
 
+  // Read on the server so `data-theme` is in the initial HTML: an explicit
+  // choice must not flash the other theme before hydration.
+  const theme = await getThemeCookie();
+  const themeAttr = themeAttribute(theme);
+
   if (isPublicMonthlySharePage) {
     const publicLocale = await getLocaleCookie();
 
     return (
-      <html lang={publicLocale} dir={RTL_LOCALES.has(publicLocale) ? "rtl" : "ltr"}>
+      <html
+        lang={publicLocale}
+        dir={RTL_LOCALES.has(publicLocale) ? "rtl" : "ltr"}
+        data-theme={themeAttr}
+      >
         <body>
           <I18nProvider locale={publicLocale}>
             {children}
@@ -104,7 +137,7 @@ export default async function RootLayout(props: Readonly<{ children: React.React
     : { mode: "workspace", userId: currentUserId, workspaceId: currentWorkspaceId };
 
   return (
-    <html lang={locale} dir={RTL_LOCALES.has(locale) ? "rtl" : "ltr"}>
+    <html lang={locale} dir={RTL_LOCALES.has(locale) ? "rtl" : "ltr"} data-theme={themeAttr}>
       <body>
         <I18nProvider locale={locale}>
           <FormatProvider numberFormat={numberFormat} dateFormat={dateFormat}>
@@ -123,6 +156,7 @@ export default async function RootLayout(props: Readonly<{ children: React.React
                       <span className="brand-short">{t(locale, "brand.short")}</span>
                     </Link>
                     <div className="topbar-actions">
+                      <ThemeToggle initialTheme={theme} />
                       <ModeToggle isDemoMode={demo} />
                       <AccountMenu
                         authEnabled={authEnabled}

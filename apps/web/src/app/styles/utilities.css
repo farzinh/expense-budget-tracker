@@ -1,7 +1,7 @@
 .data-masked {
   user-select: none;
   color: transparent !important;
-  background-image: repeating-conic-gradient(var(--accent) 0% 25%, #d0d0d0 0% 50%);
+  background-image: repeating-conic-gradient(var(--accent) 0% 25%, var(--checker) 0% 50%);
   background-size: 6px 6px;
   background-origin: content-box;
   background-clip: content-box;
@@ -18,12 +18,13 @@
 
 .copy-toast {
   position: fixed;
-  bottom: 16px;
-  inset-inline-end: 16px;
-  padding: 8px 14px;
+  bottom: var(--space-4);
+  inset-inline-end: var(--space-4);
+  padding: var(--space-2) 14px;
   background: var(--text);
   color: var(--bg);
   font-size: 12px;
+  box-shadow: var(--shadow-md);
   z-index: 1000;
 }
 

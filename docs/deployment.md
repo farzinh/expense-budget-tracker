@@ -19,7 +19,30 @@ This runs `docker compose -f infra/docker/compose.yml up -d`, which starts:
 3. **web** — Next.js app on `http://localhost:3000`.
 4. **worker** — TypeScript FX rate fetcher on a daily schedule.
 
-If you want Langfuse tracing in local Docker, set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, and an explicit 64-character lowercase hexadecimal `LANGFUSE_RELEASE` together in `.env`. Leave the three connection values unset if you do not want telemetry; `LANGFUSE_RELEASE` alone does not enable it.
+### Environment
+
+The stack reads `infra/docker/.env`, which Compose picks up automatically
+because it sits beside `compose.yml`. That file is gitignored; `make up` seeds
+it from `infra/docker/.env.example` on first run, so a fresh clone starts
+without any manual setup. Edit it to add an `OPENAI_API_KEY` for the web AI
+chat, or to switch `AUTH_MODE`.
+
+`AUTH_MODE` is the one variable with no default: Compose fails fast if it is
+missing, so that nothing can start without auth by accident. Everything else
+defaults to values that work inside the Compose network.
+
+The shipped defaults are `AUTH_MODE=none` plus `ALLOW_INSECURE_NO_AUTH=true`,
+which run the stack unauthenticated on `http://localhost:3000` for testing. The
+guard refuses that combination with a non-local `CORS_ORIGIN`, so it cannot be
+carried into a deployment. To deploy on your own server instead of AWS, see
+[self-hosting.md](self-hosting.md).
+
+Keep this file distinct from the repository-root `.env.example`. That one
+configures processes running directly on the host, so its database URLs point
+at `localhost` — inside a container `localhost` is the container itself, and
+those values would not reach Postgres.
+
+If you want Langfuse tracing in local Docker, set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, and an explicit 64-character lowercase hexadecimal `LANGFUSE_RELEASE` together in `infra/docker/.env`. Leave the three connection values unset if you do not want telemetry; `LANGFUSE_RELEASE` alone does not enable it.
 
 ### Stop
 
@@ -33,6 +56,8 @@ make down
 |---|---|
 | `make dev` | Start in foreground (logs visible) |
 | `make build` | Rebuild container images |
+| `make logs` | Follow logs from all services |
+| `make ps` | Show service status |
 | `make lint` | Run web + worker linters |
 
 ## AWS (CDK)

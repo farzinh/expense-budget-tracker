@@ -24,6 +24,16 @@ make up          # start Postgres, run migrations, start web + worker
 
 Open `http://localhost:3000`.
 
+No configuration is needed to start: `make up` seeds `infra/docker/.env` from
+`infra/docker/.env.example` on first run. Edit that file to add an
+`OPENAI_API_KEY` for the built-in AI chat. See
+[Deployment](docs/deployment.md) for the full list.
+
+The defaults run unauthenticated on localhost for testing. To deploy it for
+real on your own server — no AWS required — see
+[Self-hosting](docs/self-hosting.md), which puts the app behind Cloudflare
+Access (`AUTH_MODE=cloudflare_access`).
+
 ## Usage with AI agents
 
 Connect through either the hosted MCP server or the direct Agent API. Their credentials are separate and are not interchangeable: MCP uses OAuth Bearer access, while the Agent API uses an `ApiKey`.
@@ -79,6 +89,7 @@ After `POST /v1/workspaces/{workspaceId}/select`, the API key remembers that wor
 ## Documentation
 
 - [Deployment](docs/deployment.md) — local Docker Compose and AWS CDK setup
+- [Self-hosting](docs/self-hosting.md) — running on your own server with Cloudflare Access, no AWS
 - [AWS deployment](infra/aws/README.md) — full AWS CDK guide
 
 - [Architecture](docs/architecture.md) — system overview, data model, multi-currency design

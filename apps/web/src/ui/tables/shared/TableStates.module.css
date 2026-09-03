@@ -1,6 +1,6 @@
 .over,
 .error {
-  color: var(--table-state-danger-color, #c0392b);
+  color: var(--table-state-danger-color, var(--danger));
 }
 
 .loadingEdge {

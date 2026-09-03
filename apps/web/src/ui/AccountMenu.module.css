@@ -12,6 +12,10 @@
   color: var(--muted);
   cursor: var(--cursor-pointer);
   font-family: inherit;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .button:hover {
@@ -27,7 +31,7 @@
   min-width: 180px;
   background: var(--bg);
   border: 1px solid var(--panel-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-md);
   z-index: 200;
 }
 
@@ -42,11 +46,14 @@
   font-size: 12px;
   text-align: start;
   cursor: var(--cursor-pointer);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .item:hover {
   color: var(--text);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--surface-hover);
 }
 
 .itemActive {
@@ -95,5 +102,5 @@
 .error {
   padding: 2px 0;
   font-size: 11px;
-  color: #c0392b;
+  color: var(--danger);
 }
