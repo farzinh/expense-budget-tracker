@@ -115,6 +115,80 @@ services:
       - "127.0.0.1:3000:3000"
 ```
 
+## Deploying with Portainer
+
+`infra/docker/compose.yml` cannot be deployed from Portainer's web editor. It
+builds images from relative contexts (`context: ../..`) and bind-mounts
+`../../scripts` and `../../db` into the migrate container. Portainer writes a
+web-editor stack to its own directory, so there is no repository above it and
+none of those paths resolve.
+
+Use `infra/docker/compose.portainer.yml` instead. It references prebuilt images
+and mounts nothing, so the server only ever pulls.
+
+### 1. Publish the images
+
+`.github/workflows/publish-images.yml` builds `web`, `worker`, and `migrate`
+and pushes them to GHCR on every push to `main`, or on demand from the Actions
+tab. Nothing is compiled on the server — worth having regardless of disk space,
+because `next build` wants around 2GB of RAM and is the usual reason a build
+started from Portainer fails.
+
+The default target is `linux/amd64`. For an ARM host (Raspberry Pi, Ampere)
+run the workflow manually and pick `linux/arm64`. Building ARM images under
+QEMU emulation is slow, so expect a long first run.
+
+Packages inherit the repository's visibility. If yours is private, authenticate
+the server once:
+
+```bash
+echo <github-personal-access-token> | docker login ghcr.io -u <username> --password-stdin
+```
+
+The token needs only `read:packages`.
+
+### 2. Create the stack
+
+**Portainer → Stacks → Add stack → Web editor.** Paste the contents of
+`compose.portainer.yml`, then add these under **Environment variables**:
+
+| Variable | Value |
+| --- | --- |
+| `IMAGE_PREFIX` | `ghcr.io/<user>/expense-budget-tracker` |
+| `IMAGE_TAG` | `latest`, or a commit SHA to pin |
+| `POSTGRES_PASSWORD` | generate one, e.g. `openssl rand -hex 24` |
+| `APP_DB_PASSWORD` | generate one |
+| `WORKER_DB_PASSWORD` | generate one |
+| `AUTH_DB_PASSWORD` | generate one |
+| `CORS_ORIGIN` | `https://money.example.com` |
+| `CF_ACCESS_TEAM_DOMAIN` | `yourteam.cloudflareaccess.com` |
+| `CF_ACCESS_AUD` | the Access application audience tag |
+| `OPENAI_API_KEY` | optional, for the AI chat |
+
+Every required variable is declared `${VAR:?}`, so a missing one fails the
+deploy with a message naming it rather than starting a broken stack.
+
+The database passwords are read on first deploy, when the roles are created.
+Changing them later does not re-issue the roles; you would need to `ALTER ROLE`
+in Postgres to match.
+
+### 3. Check it came up
+
+`migrate` shows **Exited** — that is success, not a failure. It applies the
+migrations and stops, and `web` and `worker` start only because it exited `0`.
+Confirm with `Exited (0)`; a non-zero code means migrations failed and the
+other services will not have started.
+
+`postgres` is not published on the host at all — nothing outside the stack
+needs it — and `web` is bound to `127.0.0.1` so the only route in is the
+reverse proxy.
+
+### 4. Updating
+
+Push to `main`, wait for the workflow, then **Update the stack** in Portainer
+with *Re-pull image* enabled. To roll back, set `IMAGE_TAG` to an earlier
+commit SHA and redeploy.
+
 ## Nginx Proxy Manager
 
 NPM terminates TLS and forwards to the container; Access does the
@@ -128,8 +202,29 @@ authenticating in front of it. In the proxy host:
 Leave NPM's *Access List* empty. It only does HTTP Basic auth, which would put
 a second, weaker prompt in front of Access without adding protection.
 
-If NPM runs in its own Compose project, put both on a shared Docker network so
-it can resolve the container by name instead of publishing a port.
+### If NPM runs in a container
+
+This is the usual case with Portainer, and it changes the wiring. A port
+published on `127.0.0.1` is on the **host's** loopback; inside the NPM
+container `127.0.0.1` is NPM itself, so it cannot reach the app there. Pointing
+a proxy host at `127.0.0.1:3000` will fail to connect.
+
+Put both on the same Docker network instead:
+
+1. Delete the `ports:` block from the `web` service in
+   `compose.portainer.yml`.
+2. Attach NPM to the stack's network — **Portainer → Containers → your NPM
+   container → Join network** — or uncomment the `networks:` blocks at the
+   bottom of that file and set `PROXY_NETWORK`.
+3. Set the proxy host's **Forward Hostname** to `web` and **Forward Port** to
+   `3000`.
+
+This is the stronger arrangement anyway: with no published port the app is
+unreachable except through the proxy, by construction rather than by firewall
+rule.
+
+The loopback publish is only right when NPM is installed directly on the host,
+or runs with `network_mode: host`.
 
 ## Local testing in Docker
 

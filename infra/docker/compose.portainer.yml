@@ -1,0 +1,125 @@
+# Self-hosted production stack, deployable from Portainer's web editor.
+#
+# Differs from compose.yml in the two ways that make that file undeployable
+# through Portainer:
+#   - no `build:` sections. Portainer writes a web-editor stack to its own
+#     directory, so a relative build context has no repository above it.
+#     Images come from GHCR instead, built by .github/workflows/publish-images.yml.
+#   - no bind mounts. compose.yml mounts ../../scripts and ../../db into the
+#     migrate container; those paths do not exist on the server. The migrate
+#     image bakes them in instead.
+#
+# Nothing is compiled on the server, so a low-RAM host cannot fail the build.
+#
+# Set the variables under "Environment variables" in the Portainer stack UI.
+# Full walkthrough: docs/self-hosting.md
+
+services:
+  postgres:
+    image: postgres:18.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tracker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong value}
+      POSTGRES_DB: tracker
+    # Deliberately not published. Nothing outside this stack needs the
+    # database, and exposing 5432 on a public host is a standing risk.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    image: ${IMAGE_PREFIX:?e.g. ghcr.io/youruser/expense-budget-tracker}-migrate:${IMAGE_TAG:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The image's own entrypoint targets RDS: it assembles libpq variables and
+    # forces PGSSLMODE=require, which a plain self-hosted Postgres rejects.
+    # migrate.sh also accepts a full connection string, so call it directly.
+    entrypoint: ["bash", "/scripts/migrate.sh"]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://tracker:${POSTGRES_PASSWORD:?}@postgres:5432/tracker
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set a strong value}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?set a strong value}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?set a strong value}
+    restart: "no"
+
+  web:
+    image: ${IMAGE_PREFIX:?}-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Only reachable on the host's loopback: the internet cannot hit this
+    # directly, so nobody can bypass Cloudflare Access by addressing the host.
+    #
+    # This works when the reverse proxy runs on the HOST. If Nginx Proxy
+    # Manager runs in its own container — the usual case with Portainer — it
+    # cannot reach 127.0.0.1 here, because inside that container 127.0.0.1 is
+    # the proxy itself. Then do this instead:
+    #   1. delete the `ports:` block below entirely, and
+    #   2. attach the proxy to this stack's network (Portainer → Containers →
+    #      your NPM container → Join network), or uncomment the `networks:`
+    #      blocks at the bottom of this file,
+    #   3. point the proxy host at `web` on port 3000.
+    # Publishing no port at all is the stronger setup: the app is then
+    # unreachable except through the proxy, by construction.
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://app:${APP_DB_PASSWORD:?}@postgres:5432/tracker
+      HOST: "0.0.0.0"
+      PORT: "3000"
+
+      AUTH_MODE: cloudflare_access
+      # The origin the BROWSER uses, not the address the proxy forwards to. It
+      # is compared against the Origin header on every mutating request, and
+      # must be https because the __Host-csrf cookie is issued Secure.
+      CORS_ORIGIN: ${CORS_ORIGIN:?e.g. https://money.example.com}
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:?e.g. yourteam.cloudflareaccess.com}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?Access application audience tag}
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      LANGFUSE_RELEASE: ${LANGFUSE_RELEASE:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # 127.0.0.1, not localhost: the server binds IPv4 0.0.0.0 while busybox
+      # wget resolves localhost to ::1 first and gets connection refused.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: ${IMAGE_PREFIX:?}-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://worker:${WORKER_DB_PASSWORD:?}@postgres:5432/tracker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+
+# Uncomment together with the `networks:` entry on the web service to put the
+# app on an existing reverse-proxy network. The network must already exist;
+# set PROXY_NETWORK to its name (Portainer → Networks), commonly `npm_default`.
+#
+#   web:
+#     networks: [default, proxy]
+#
+# networks:
+#   proxy:
+#     external: true
+#     name: ${PROXY_NETWORK:-npm_default}

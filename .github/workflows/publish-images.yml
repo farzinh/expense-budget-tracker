@@ -1,0 +1,126 @@
+# Build the self-hosting images and push them to GitHub Container Registry.
+#
+# Separate from deploy.yml, which builds for AWS ECR and deploys the hosted
+# stack. This workflow only publishes images; the server pulls them, so nothing
+# is ever compiled on the server itself. `next build` wants ~2GB of RAM, which
+# is the usual reason a home-server or Portainer build fails.
+#
+# Consumed by infra/docker/compose.portainer.yml. See docs/self-hosting.md.
+
+name: Publish images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Target platforms for the images
+        required: false
+        default: linux/amd64
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
+          - linux/amd64,linux/arm64
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # .dockerignore un-ignores packages/agent-shared/dist, so the web image
+      # expects it to already exist in the build context. Without this the
+      # Next.js build fails to resolve @expense-budget-tracker/agent-shared.
+      - name: Build shared package
+        run: npm --workspace @expense-budget-tracker/agent-shared run build
+
+      # GHCR rejects uppercase characters in image names, and a GitHub username
+      # may contain them even though the repository path is shown lowercased.
+      - name: Resolve image prefix
+        id: prefix
+        run: echo "value=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3.6.0
+        if: contains(inputs.platforms, 'arm64')
+
+      - uses: docker/setup-buildx-action@v3.11.1
+
+      - uses: docker/login-action@v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          push: true
+          tags: |
+            ${{ steps.prefix.outputs.value }}-web:latest
+            ${{ steps.prefix.outputs.value }}-web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Build and push worker
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          push: true
+          tags: |
+            ${{ steps.prefix.outputs.value }}-worker:latest
+            ${{ steps.prefix.outputs.value }}-worker:${{ github.sha }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,scope=worker,mode=max
+
+      # Bakes scripts/migrate.sh and db/ into the image, so the deployed stack
+      # needs no bind mounts and therefore no repository checkout on the server.
+      - name: Build and push migrate
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: infra/docker/Dockerfile.migrate
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          push: true
+          tags: |
+            ${{ steps.prefix.outputs.value }}-migrate:latest
+            ${{ steps.prefix.outputs.value }}-migrate:${{ github.sha }}
+          cache-from: type=gha,scope=migrate
+          cache-to: type=gha,scope=migrate,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Images published"
+            echo
+            for image in web worker migrate; do
+              echo "- \`${{ steps.prefix.outputs.value }}-$image:latest\`"
+            done
+            echo
+            echo "Redeploy the Portainer stack to pull them."
+          } >> "$GITHUB_STEP_SUMMARY"
