@@ -2,10 +2,11 @@
  * Production startup validation.
  *
  * Called once by Next.js on server boot. Checks:
- * - AUTH_MODE is set explicitly to "none" or "cognito"
+ * - AUTH_MODE is set explicitly to "none", "cognito", or "cloudflare_access"
  * - COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, COGNITO_REGION are set when AUTH_MODE=cognito
  * - CORS_ORIGIN is set when AUTH_MODE=cognito (required for CSRF protection)
  * - AUTH_DOMAIN is set when AUTH_MODE=cognito (auth service subdomain)
+ * - CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD, CORS_ORIGIN are set when AUTH_MODE=cloudflare_access
  * - AUTH_MODE=none is allowed only for explicit local dev/test
  * - DATABASE_URL is set (local) or DB_HOST+DB_PASSWORD are set (cognito/ECS)
  * - LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL are either all set or all absent
@@ -16,6 +17,7 @@
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getAuthModeValidationErrors } from "@/server/authMode";
 import { createLangfuseSpanProcessor } from "@/server/chat/openai/langfuse";
+import { log } from "@/server/logger";
 
 let telemetrySdk: NodeSDK | null = null;
 let telemetryStarted = false;
@@ -104,6 +106,23 @@ export const register = (): void => {
     }
   }
 
+  if (authMode === "cloudflare_access") {
+    const teamDomain = process.env.CF_ACCESS_TEAM_DOMAIN;
+    if (teamDomain === undefined || teamDomain === "") {
+      errors.push("CF_ACCESS_TEAM_DOMAIN must be set when AUTH_MODE=cloudflare_access");
+    }
+    // Without an audience check any token minted for any application in the
+    // same Cloudflare team would be accepted, so this is required.
+    const accessAud = process.env.CF_ACCESS_AUD;
+    if (accessAud === undefined || accessAud === "") {
+      errors.push("CF_ACCESS_AUD must be set when AUTH_MODE=cloudflare_access (Access application audience tag)");
+    }
+    const corsOrigin = process.env.CORS_ORIGIN;
+    if (corsOrigin === undefined || corsOrigin === "") {
+      errors.push("CORS_ORIGIN must be set when AUTH_MODE=cloudflare_access (required for CSRF protection)");
+    }
+  }
+
   if (authMode === "cognito") {
     if (!process.env.DB_HOST) errors.push("DB_HOST must be set when AUTH_MODE=cognito");
     if (!process.env.DB_PASSWORD) errors.push("DB_PASSWORD must be set when AUTH_MODE=cognito");
@@ -117,6 +136,16 @@ export const register = (): void => {
     throw new Error(
       `Startup validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`,
     );
+  }
+
+  if (authMode === "none" && process.env.ALLOW_INSECURE_NO_AUTH === "true") {
+    log({
+      domain: "auth",
+      action: "proxy_auth_error",
+      error:
+        "ALLOW_INSECURE_NO_AUTH=true — every request is treated as the local user."
+        + " Intended for local container testing only. Never expose this instance.",
+    });
   }
 
   startTelemetryIfConfigured();
