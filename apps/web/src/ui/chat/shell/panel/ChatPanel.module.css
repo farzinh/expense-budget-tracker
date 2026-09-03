@@ -160,8 +160,8 @@
 }
 
 .messageError {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .stoppedNotice {
@@ -343,7 +343,7 @@
   border: 1px solid var(--panel-border);
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-up);
 }
 
 .accountMentionOption {
@@ -429,8 +429,8 @@
 }
 
 .microphoneButton[aria-pressed="true"] {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .modelLabel {
@@ -482,7 +482,7 @@
 }
 
 .attachmentRemove:hover {
-  color: #c0392b;
+  color: var(--danger);
 }
 
 .attachmentProcessing {
@@ -497,9 +497,9 @@
 }
 
 .attachmentError {
-  border-inline-start: 2px solid #c0392b;
+  border-inline-start: 2px solid var(--danger);
   padding-inline-start: 6px;
-  color: #c0392b;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -511,11 +511,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  border: 2px dashed var(--accent, #4a90d9);
+  background: var(--overlay-strong);
+  border: 2px dashed var(--accent);
   border-radius: 6px;
   pointer-events: none;
-  color: #fff;
+  color: var(--overlay-text);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;

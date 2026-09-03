@@ -78,13 +78,13 @@
 }
 
 .saveDanger {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .saveDanger:hover {
-  color: #a93226;
-  border-color: #a93226;
+  color: var(--danger-strong);
+  border-color: var(--danger-strong);
 }
 
 .error {
@@ -99,24 +99,24 @@
 
 .warning {
   font-size: 13px;
-  color: #c0392b;
+  color: var(--danger);
   margin-bottom: 8px;
 }
 
 .dangerPanel {
-  border-color: rgba(192, 57, 43, 0.45);
+  border-color: var(--danger-border);
 }
 
 .dangerKicker {
   margin: 0 0 4px;
-  color: #c0392b;
+  color: var(--danger);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .dangerTitle {
-  color: #7a2e25;
+  color: var(--danger-text);
 }
 
 .codeblock {
@@ -228,7 +228,7 @@
 }
 
 .table tr:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--surface-subtle);
 }
 
 .filteredActions {

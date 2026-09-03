@@ -1,9 +1,224 @@
+/*
+ * Design tokens.
+ *
+ * Theme resolution has three states, mirroring the `theme` cookie:
+ *   - `data-theme="light"` / `data-theme="dark"` — an explicit user choice,
+ *     stamped on <html> by the server in `layout.tsx` so there is no flash.
+ *   - no attribute — "system", resolved by `prefers-color-scheme`.
+ *
+ * Every color is defined on bare `:root` first; the dark blocks redefine only
+ * what changes. Never give a color its sole definition inside a media or
+ * `[data-theme]` block, or the other theme inherits nothing.
+ */
+
 :root {
+  color-scheme: light;
+
+  /* Core surfaces and text. */
   --bg: #ffffff;
   --panel: #ffffff;
   --panel-border: #232323;
   --text: #000000;
   --muted: #898989;
   --accent: #232323;
+
+  /* Layered surface tints, for hover, zebra striping, and inset blocks. */
+  --surface-subtle: rgba(0, 0, 0, 0.02);
+  --surface-hover: rgba(0, 0, 0, 0.04);
+  --surface-active: rgba(0, 0, 0, 0.06);
+
+  /* Hairline divider, lighter than --panel-border. */
+  --divider: #e5e5e5;
+
+  /* Modal and drag-target scrims. Both themes darken, so text on a scrim
+     stays light and needs no per-theme override. */
+  --overlay: rgba(0, 0, 0, 0.3);
+  --overlay-strong: rgba(0, 0, 0, 0.45);
+  --overlay-text: #ffffff;
+
+  /* Elevation. Menus use -sm, popovers -md, dialogs -lg. */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.24);
+  --shadow-up: 0 -4px 16px rgba(0, 0, 0, 0.16);
+
+  /* Negative / destructive state. */
+  --danger: #c0392b;
+  --danger-strong: #a93226;
+  --danger-bright: #e74c3c;
+  --danger-text: #7a2e25;
+  --danger-border: rgba(192, 57, 43, 0.45);
+  --danger-surface: rgba(192, 57, 43, 0.07);
+  --danger-on: #ffffff;
+
+  /* Positive state. */
+  --success: #2e7d32;
+  --success-bright: #4caf50;
+  --success-text: #116329;
+  --success-border: rgba(17, 99, 41, 0.35);
+  --success-surface: rgba(17, 99, 41, 0.08);
+
+  /* Tooltips are an inverted surface in light mode, a raised one in dark. */
+  --tooltip-bg: #1a1a1a;
+  --tooltip-text: #f0f0f0;
+  --tooltip-border: #333333;
+  --tooltip-muted: #aaaaaa;
+
+  /* Checkerboard fill behind masked (filtered-mode) values. */
+  --checker: #d0d0d0;
+
+  /* Chart furniture. Gridlines and axes are drawn as SVG strokes, so they
+     need explicit tokens rather than inheriting from borders. */
+  --chart-grid: rgba(0, 0, 0, 0.08);
+  --chart-grid-faint: rgba(0, 0, 0, 0.06);
+  --chart-axis: rgba(0, 0, 0, 0.3);
+  --chart-axis-strong: rgba(0, 0, 0, 0.4);
+
+  /* Treemap tiles mix a category color toward this base, so it must track the
+     page background — otherwise dark mode renders near-white slabs. */
+  --chart-tile-base: #ffffff;
+  --chart-tile-heading: #111111;
+  --chart-tile-text: #222222;
+  --chart-tile-text-muted: #555555;
+
+  /* The one chromatic exception: focus must stay visible against a
+     near-black border in light and a near-white one in dark. */
+  --focus-ring: #1a5fb4;
+
+  /* 4px spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Square corners are intentional; tokenized so the choice stays central. */
+  --radius: 0px;
+
+  --transition-fast: 120ms ease;
+
   --cursor-pointer: pointer;
+}
+
+/* "system" — no data-theme attribute, so follow the OS. The :not() guard
+   keeps an explicit light choice light on a dark-mode OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0d0d0d;
+    --panel: #0d0d0d;
+    --panel-border: #3a3a3a;
+    --text: #f2f2f2;
+    --muted: #8a8a8a;
+    --accent: #e8e8e8;
+
+    --surface-subtle: rgba(255, 255, 255, 0.03);
+    --surface-hover: rgba(255, 255, 255, 0.06);
+    --surface-active: rgba(255, 255, 255, 0.09);
+
+    --divider: #2e2e2e;
+
+    --overlay: rgba(0, 0, 0, 0.6);
+    --overlay-strong: rgba(0, 0, 0, 0.72);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.7);
+    --shadow-up: 0 -4px 16px rgba(0, 0, 0, 0.6);
+
+    --danger: #ff6b5a;
+    --danger-strong: #ff8577;
+    --danger-bright: #ff7461;
+    --danger-text: #ffb3a8;
+    --danger-border: rgba(255, 107, 90, 0.45);
+    --danger-surface: rgba(255, 107, 90, 0.12);
+    --danger-on: #1a0a08;
+
+    --success: #5dd66b;
+    --success-bright: #5dd66b;
+    --success-text: #8fe89a;
+    --success-border: rgba(93, 214, 107, 0.4);
+    --success-surface: rgba(93, 214, 107, 0.12);
+
+    --tooltip-bg: #242424;
+    --tooltip-text: #f2f2f2;
+    --tooltip-border: #4a4a4a;
+    --tooltip-muted: #9a9a9a;
+
+    --checker: #3a3a3a;
+
+    --chart-grid: rgba(255, 255, 255, 0.1);
+    --chart-grid-faint: rgba(255, 255, 255, 0.07);
+    --chart-axis: rgba(255, 255, 255, 0.35);
+    --chart-axis-strong: rgba(255, 255, 255, 0.45);
+
+    --chart-tile-base: #0d0d0d;
+    --chart-tile-heading: #f2f2f2;
+    --chart-tile-text: #e8e8e8;
+    --chart-tile-text-muted: #a8a8a8;
+
+    --focus-ring: #7db3ff;
+  }
+}
+
+/* Explicit dark choice wins regardless of the OS setting. Kept in sync with
+   the media block above by hand: any token added there belongs here too. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0d0d0d;
+  --panel: #0d0d0d;
+  --panel-border: #3a3a3a;
+  --text: #f2f2f2;
+  --muted: #8a8a8a;
+  --accent: #e8e8e8;
+
+  --surface-subtle: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.09);
+
+  --divider: #2e2e2e;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+  --overlay-strong: rgba(0, 0, 0, 0.72);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.7);
+  --shadow-up: 0 -4px 16px rgba(0, 0, 0, 0.6);
+
+  --danger: #ff6b5a;
+  --danger-strong: #ff8577;
+  --danger-bright: #ff7461;
+  --danger-text: #ffb3a8;
+  --danger-border: rgba(255, 107, 90, 0.45);
+  --danger-surface: rgba(255, 107, 90, 0.12);
+  --danger-on: #1a0a08;
+
+  --success: #5dd66b;
+  --success-bright: #5dd66b;
+  --success-text: #8fe89a;
+  --success-border: rgba(93, 214, 107, 0.4);
+  --success-surface: rgba(93, 214, 107, 0.12);
+
+  --tooltip-bg: #242424;
+  --tooltip-text: #f2f2f2;
+  --tooltip-border: #4a4a4a;
+  --tooltip-muted: #9a9a9a;
+
+  --checker: #3a3a3a;
+
+  --chart-grid: rgba(255, 255, 255, 0.1);
+  --chart-grid-faint: rgba(255, 255, 255, 0.07);
+  --chart-axis: rgba(255, 255, 255, 0.35);
+  --chart-axis-strong: rgba(255, 255, 255, 0.45);
+
+  --chart-tile-base: #0d0d0d;
+  --chart-tile-heading: #f2f2f2;
+  --chart-tile-text: #e8e8e8;
+  --chart-tile-text-muted: #a8a8a8;
+
+  --focus-ring: #7db3ff;
 }

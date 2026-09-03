@@ -59,12 +59,16 @@ const fmtDate = (ts: string): string => {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const lighten = (hex: string, f: number): string => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgb(${Math.round(r + (255 - r) * f)},${Math.round(g + (255 - g) * f)},${Math.round(b + (255 - b) * f)})`;
-};
+/**
+ * Blend a category color `f` of the way toward the page background.
+ *
+ * Resolved by the browser rather than in JS so it follows the active theme
+ * with no theme lookup here: `--chart-tile-base` is white in light mode and
+ * near-black in dark, which keeps tiles as a faint wash of the category color
+ * in both instead of near-white slabs on a dark page.
+ */
+const tint = (hex: string, f: number): string =>
+  `color-mix(in srgb, var(--chart-tile-base) ${Math.round(f * 100)}%, ${hex})`;
 
 const estTextW = (text: string, fontSize: number): number =>
   text.length * fontSize * 0.62;
@@ -173,7 +177,7 @@ export const ExpenseTreemapChart = (props: Props): ReactElement => {
     return (
       <div className={styles.wrap}>
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Expense treemap">
-          <text x={WIDTH / 2} y={HEIGHT / 2} textAnchor="middle" fill="#898989" fontSize={14}>
+          <text x={WIDTH / 2} y={HEIGHT / 2} textAnchor="middle" fill="var(--muted)" fontSize={14}>
             {t("chart.noSpendData")}
           </text>
         </svg>
@@ -218,8 +222,8 @@ export const ExpenseTreemapChart = (props: Props): ReactElement => {
                     y={catNode.y0}
                     width={cw}
                     height={ch}
-                    fill={lighten(color, 0.88)}
-                    stroke={lighten(color, 0.5)}
+                    fill={tint(color, 0.88)}
+                    stroke={tint(color, 0.5)}
                     strokeWidth={1}
                   />
 
@@ -250,17 +254,17 @@ export const ExpenseTreemapChart = (props: Props): ReactElement => {
                           y={ly}
                           width={lw}
                           height={lh}
-                          fill={lighten(color, 0.72)}
-                          stroke={lighten(color, 0.45)}
+                          fill={tint(color, 0.72)}
+                          stroke={tint(color, 0.45)}
                           strokeWidth={0.5}
                         />
                         {amtFits && (
-                          <text x={lx + 3} y={ly + fs + 2} fill="#222" fontSize={fs} fontWeight="500">
+                          <text x={lx + 3} y={ly + fs + 2} fill="var(--chart-tile-text)" fontSize={fs} fontWeight="500">
                             {amt}
                           </text>
                         )}
                         {cpFits && (
-                          <text x={lx + 3} y={ly + fs + 14} fill="#555" fontSize={9}>
+                          <text x={lx + 3} y={ly + fs + 14} fill="var(--chart-tile-text-muted)" fontSize={9}>
                             {cp}
                           </text>
                         )}
@@ -279,17 +283,17 @@ export const ExpenseTreemapChart = (props: Props): ReactElement => {
                         y={catNode.y0}
                         width={cw}
                         height={HEADER_H}
-                        fill={lighten(color, 0.6)}
+                        fill={tint(color, 0.6)}
                       />
                       <line
                         x1={catNode.x0}
                         x2={catNode.x1}
                         y1={catNode.y0 + HEADER_H}
                         y2={catNode.y0 + HEADER_H}
-                        stroke={lighten(color, 0.35)}
+                        stroke={tint(color, 0.35)}
                         strokeWidth={1}
                       />
-                      <text x={catNode.x0 + 4} y={catNode.y0 + 13} fill="#111" fontSize={11} fontWeight="700">
+                      <text x={catNode.x0 + 4} y={catNode.y0 + 13} fill="var(--chart-tile-heading)" fontSize={11} fontWeight="700">
                         {headerLabel}
                       </text>
                     </g>

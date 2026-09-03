@@ -3,6 +3,7 @@
 }
 
 .segment {
+  position: relative;
   font-size: 12px;
   padding: 4px 10px;
   border: 1px solid var(--panel-border);
@@ -10,7 +11,12 @@
   color: var(--muted);
   cursor: var(--cursor-pointer);
   font-family: inherit;
+  white-space: nowrap;
   margin-inline-start: -1px;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .segment:first-child {
@@ -21,7 +27,15 @@
   color: var(--text);
   border-color: var(--text);
   z-index: 1;
-  position: relative;
+}
+
+/* Lift above the neighbour's -1px overlap so the focus ring is not clipped. */
+.segment:focus-visible {
+  z-index: 2;
+}
+
+.segment:not(:disabled):active {
+  background: var(--surface-active);
 }
 
 .segment:disabled {
@@ -34,5 +48,16 @@
   border-color: var(--text);
   background: var(--text);
   z-index: 1;
-  position: relative;
+}
+
+.segmentActive:not(:disabled):hover {
+  color: var(--bg);
+}
+
+/* Two segmented controls plus the account menu do not fit a phone at full
+   padding; tighten rather than wrap into a second row. */
+@media (max-width: 768px) {
+  .segment {
+    padding: 4px 7px;
+  }
 }

@@ -68,7 +68,7 @@
   border-radius: 0;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-lg);
   font-family: inherit;
 }
 
@@ -256,7 +256,7 @@
   padding-inline: 12px;
   border-block-end: 1px solid var(--panel-border);
   background: var(--panel);
-  color: #c0392b;
+  color: var(--danger);
   font-size: 12px;
   text-align: start;
   white-space: pre-wrap;
