@@ -95,7 +95,14 @@ const buildCsp = (nonce: string): string => {
   const origin = process.env.CORS_ORIGIN ?? "";
   const directives: Array<string> = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    // 'wasm-unsafe-eval' is required by the PDF chat attachment path: pdf.js is
+    // configured with a wasmUrl and compiles WebAssembly to decode JPEG2000 and
+    // JBIG2 images, which scanned bank statements commonly contain. Chromium
+    // refuses that compilation without this keyword, while Firefox does not gate
+    // wasm on script-src at all — so the failure only appears in Chromium
+    // browsers, and only in production, since 'unsafe-eval' covers it in dev.
+    // It permits WebAssembly compilation only; eval() of JavaScript stays blocked.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "style-src-elem 'self'",
     "img-src 'self' blob: data:",
