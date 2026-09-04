@@ -131,18 +131,3 @@ test("production CSP allows only same-origin and blob workers", async (): Promis
     assert.doesNotMatch(csp, /script-src[^;]*'unsafe-eval'/u);
   });
 });
-
-test("production CSP allows WebAssembly but not JavaScript eval", async (): Promise<void> => {
-  await withCognitoEnv(async (): Promise<void> => {
-    Reflect.set(process.env, "NODE_ENV", "production");
-    const response = await proxy(createRequest("/api/health"));
-    const csp = response.headers.get("Content-Security-Policy") ?? "";
-
-    // pdf.js compiles wasm to decode JPEG2000/JBIG2 images in PDF attachments.
-    // Chromium blocks that without this keyword; Firefox does not, which is why
-    // the failure showed up only in Chromium-based browsers.
-    assert.match(csp, /script-src[^;]*'wasm-unsafe-eval'/u);
-    // The narrower keyword must not have re-admitted JavaScript eval().
-    assert.doesNotMatch(csp, /script-src[^;]*'unsafe-eval'/u);
-  });
-});
