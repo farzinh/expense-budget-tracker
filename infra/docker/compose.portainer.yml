@@ -51,22 +51,24 @@ services:
   web:
     image: ${IMAGE_PREFIX:?}-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    # Only reachable on the host's loopback: the internet cannot hit this
-    # directly, so nobody can bypass Cloudflare Access by addressing the host.
+    # WEB_BIND controls which host interface the port is published on. The
+    # default keeps it on loopback, reachable only from this host.
     #
-    # This works when the reverse proxy runs on the HOST. If Nginx Proxy
-    # Manager runs in its own container — the usual case with Portainer — it
-    # cannot reach 127.0.0.1 here, because inside that container 127.0.0.1 is
-    # the proxy itself. Then do this instead:
-    #   1. delete the `ports:` block below entirely, and
-    #   2. attach the proxy to this stack's network (Portainer → Containers →
-    #      your NPM container → Join network), or uncomment the `networks:`
-    #      blocks at the bottom of this file,
-    #   3. point the proxy host at `web` on port 3000.
-    # Publishing no port at all is the stronger setup: the app is then
-    # unreachable except through the proxy, by construction.
+    #   proxy on THIS host          leave WEB_BIND unset (127.0.0.1)
+    #   proxy in a container here   remove this ports: block and put the proxy
+    #                               on this stack's network, then target `web`
+    #   proxy on ANOTHER host       WEB_BIND=<this host's LAN IP>
+    #
+    # The last case has to cross the network, so the port must be published on
+    # an interface the proxy can route to. Two things keep that safe:
+    #   - a private RFC1918 address is not routable from the internet, so do
+    #     NOT port-forward this port on your router; forward only 443 to the
+    #     proxy, and firewall this port to the proxy's IP if you can.
+    #   - the app still refuses any request without a valid Cloudflare Access
+    #     assertion, so reaching it directly on the LAN returns 403 rather
+    #     than data.
     ports:
-      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgresql://app:${APP_DB_PASSWORD:?}@postgres:5432/tracker
       HOST: "0.0.0.0"

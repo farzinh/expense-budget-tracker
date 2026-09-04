@@ -202,6 +202,29 @@ authenticating in front of it. In the proxy host:
 Leave NPM's *Access List* empty. It only does HTTP Basic auth, which would put
 a second, weaker prompt in front of Access without adding protection.
 
+### If the proxy runs on a different host
+
+A shared Docker network is not available across machines, so the app has to be
+reachable over the LAN. Set `WEB_BIND` to the app host's LAN address:
+
+```
+WEB_BIND=192.168.1.215
+```
+
+Then point the proxy host at `192.168.1.215:3000`. Two things keep this safe:
+
+- A private RFC1918 address is not routable from the internet. Forward only
+  443 to the proxy on your router — never forward this port. If your firewall
+  allows it, restrict the port to the proxy's IP:
+  `ufw allow from <proxy-ip> to any port 3000 proto tcp`.
+- The app still refuses any request without a valid Access assertion, so
+  reaching it directly from the LAN returns `403` rather than data. Verify
+  that from another machine: `curl -i http://192.168.1.215:3000/` should be
+  `403`, and `/api/live` should be `200`.
+
+The assertion travels as the `Cf-Access-Jwt-Assertion` header, which nginx
+forwards unchanged, so no extra proxy configuration is needed for it.
+
 ### If NPM runs in a container
 
 This is the usual case with Portainer, and it changes the wiring. A port
